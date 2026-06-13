@@ -23,6 +23,7 @@ from modules.preprocess import (
     parse_dapa_foreign,
     parse_strategic_goods,
     parse_population,
+    parse_dapa_bidders,
     aggregate_disease_by_jibang,
 )
 from modules.ml_engine import (
@@ -78,6 +79,7 @@ DATA_FILES = {
     "ari":        "질병관리청_법정감염병 표본감시_통계_급성호흡기감염증.csv",
     "dapa_dom":   "방위사업청_국내조달 계약정보_20251231.csv",
     "dapa_for":   "방위사업청_국외조달 계약정보_20251231.csv",
+    "dapa_bidders": "방위사업청 국내조달 입찰참여업체정보_20251231.csv",
     "strategic":  "무역안보관리원_전략물자 품목키워드 및 개정정보_20260522.csv",
     "population": "행정안전부_지역별 연령별 주민등록 인구현황_월간.csv",
 }
@@ -300,6 +302,15 @@ if raw is not None:
     except Exception as e:
         st.error(f"국외조달 로드 오류: {e}")
 
+raw = _load_raw("dapa_bidders", None)
+bidders_info = None
+if raw is not None:
+    try:
+        bidders_info = parse_dapa_bidders(raw)
+        st.success(f"입찰참여업체 로드 완료: {bidders_info['고유업체수']:,}개 업체")
+    except Exception as e:
+        st.error(f"입찰참여업체 로드 오류: {e}")
+
 raw = _load_raw("strategic", f_strategic)
 if raw is not None:
     try:
@@ -349,7 +360,7 @@ with st.spinner("감염병 DC 계산 중..."):
 with st.spinner("물자 Risk 계산 중..."):
     try:
         mat_score, mat_components, mat_warnings = calc_material_risk(
-            domestic_info, foreign_info, strategic_info
+            domestic_info, foreign_info, strategic_info, bidders_info
         )
         all_warnings.extend(mat_warnings)
     except Exception as e:
