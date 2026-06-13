@@ -383,7 +383,7 @@ def render_forecast(forecast_df: pd.DataFrame):
             return "color: #27ae60;"
         return ""
 
-    styled = forecast_df.style.applymap(color_change, subset=["등급변화"])
+    styled = forecast_df.style.map(color_change, subset=["등급변화"])
     st.dataframe(styled, use_container_width=True)
 
     # 현재 vs 예측 바 차트
@@ -518,7 +518,7 @@ def render_ml_prediction(pred_df: pd.DataFrame, cv_score: float):
     def color_grade(val):
         return GRADE_BG.get(val, "")
 
-    styled = display.style.applymap(color_grade, subset=["예측등급"])
+    styled = display.style.map(color_grade, subset=["예측등급"])
     st.dataframe(styled, use_container_width=True)
 
 
