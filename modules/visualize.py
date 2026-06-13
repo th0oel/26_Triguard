@@ -91,7 +91,7 @@ def apply_risk_style(df: pd.DataFrame, score_cols: list = None, grade_col: str =
         return df.style
     styled = df.style
     for col, fn in style_dict.items():
-        styled = styled.applymap(fn, subset=[col])
+        styled = styled.map(fn, subset=[col])
     return styled
 
 
