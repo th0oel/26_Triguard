@@ -4,3 +4,4 @@ chardet
 numpy
 openpyxl
 plotly
+scikit-learn
