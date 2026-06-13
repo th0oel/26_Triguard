@@ -86,8 +86,12 @@ def get_data_path(key: str):
     filename = DATA_FILES.get(key)
     if not filename:
         return None
-    path = os.path.join(DATA_DIR, filename)
-    return path if os.path.exists(path) else None
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    for base in [DATA_DIR, ROOT_DIR]:
+        path = os.path.join(base, filename)
+        if os.path.exists(path):
+            return path
+    return None
 
 
 def load_auto(key: str):
@@ -133,10 +137,10 @@ with st.sidebar:
 
     if mode == "실제 데이터 모드":
         if auto_count > 0:
-            st.success(f"✅ data/ 폴더에서 {auto_count}개 파일 자동 감지")
+            st.success(f"✅ {auto_count}개 파일 자동 감지")
             use_auto = st.toggle("자동 로드 사용", value=True)
         else:
-            st.info("data/ 폴더에 CSV가 없습니다. 직접 업로드하세요.")
+            st.info("CSV가 없습니다. 직접 업로드하세요.")
             use_auto = False
 
         if not use_auto or auto_count == 0:
