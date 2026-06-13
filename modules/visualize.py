@@ -36,10 +36,10 @@ JIBANG_TO_SIDO = {
     "경기북부": ["경기도"],
     "광주전남": ["광주광역시", "전라남도"],
     "대전충남": ["대전광역시", "충청남도", "세종특별자치시"],
-    "강원":    ["강원특별자치도"],
-    "강원영동": ["강원특별자치도"],
+    "강원":    ["강원도"],
+    "강원영동": ["강원도"],
     "충북":    ["충청북도"],
-    "전북":    ["전북특별자치도"],
+    "전북":    ["전라북도"],
     "경남":    ["경상남도"],
     "제주":    ["제주특별자치도"],
     "인천":    ["인천광역시"],
@@ -91,7 +91,7 @@ def apply_risk_style(df: pd.DataFrame, score_cols: list = None, grade_col: str =
         return df.style
     styled = df.style
     for col, fn in style_dict.items():
-        styled = styled.map(fn, subset=[col])
+        styled = styled.applymap(fn, subset=[col])
     return styled
 
 
@@ -383,7 +383,7 @@ def render_forecast(forecast_df: pd.DataFrame):
             return "color: #27ae60;"
         return ""
 
-    styled = forecast_df.style.map(color_change, subset=["등급변화"])
+    styled = forecast_df.style.applymap(color_change, subset=["등급변화"])
     st.dataframe(styled, use_container_width=True)
 
     # 현재 vs 예측 바 차트
@@ -518,7 +518,7 @@ def render_ml_prediction(pred_df: pd.DataFrame, cv_score: float):
     def color_grade(val):
         return GRADE_BG.get(val, "")
 
-    styled = display.style.map(color_grade, subset=["예측등급"])
+    styled = display.style.applymap(color_grade, subset=["예측등급"])
     st.dataframe(styled, use_container_width=True)
 
 
