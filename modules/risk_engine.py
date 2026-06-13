@@ -8,60 +8,67 @@ import numpy as np
 import pandas as pd
 from modules.preprocess import safe_divide
 
+
 # ─────────────────────────────────────────────
-# 가중치 상수 (수정 시 여기만 변경)
+# 가중치 상수
 # ─────────────────────────────────────────────
 
 WEIGHTS_MANPOWER = {
-    "입영인원_감소율":      0.30,
-    "병역판정검사_감소율":  0.25,
-    "병역면제율":           0.20,
-    "재신체검사율":         0.10,
-    "입영_차질률":          0.15,
+    "입영인원_감소율": 0.30,
+    "병역판정검사_감소율": 0.25,
+    "병역면제율": 0.20,
+    "재신체검사율": 0.10,
+    "입영_차질률": 0.15,
 }
 
 WEIGHTS_DISEASE = {
-    "지역별_발생률":        0.35,
-    "질병_등급_가중합":     0.30,
+    "지역별_발생률": 0.35,
+    "질병_등급_가중합": 0.30,
     "인플루엔자_유행_강도": 0.20,
-    "급성호흡기_트렌드":    0.15,
+    "급성호흡기_트렌드": 0.15,
 }
 
 WEIGHTS_MATERIAL = {
     "국내조달_계약_감소율": 0.25,
-    "국외조달_의존도":      0.25,
-    "공급업체_집중도":      0.20,
-    "수의계약_의존도":      0.15,
+    "국외조달_의존도": 0.25,
+    "공급업체_집중도": 0.20,
+    "수의계약_의존도": 0.15,
     "전략물자_관련_계약_비율": 0.15,
 }
 
 WEIGHTS_INTEGRATED = {
-    "인력":   0.40,
+    "인력": 0.40,
     "감염병": 0.40,
-    "물자":   0.20,
+    "물자": 0.20,
 }
 
 # 위험 등급 임계값
-GRADE_DANGER  = 60.0   # 이상 → 위험
-GRADE_CAUTION = 35.0   # 이상 → 주의
-# 미만 → 정상
+GRADE_DANGER = 60.0
+GRADE_CAUTION = 35.0
 
+
+# ─────────────────────────────────────────────
+# 공통 유틸
+# ─────────────────────────────────────────────
 
 def validate_weights(weights: dict, name: str) -> list:
-    """가중치 합이 1.0인지 검증. 오차 허용: ±0.01. 경고 메시지 리스트 반환."""
+    """가중치 합이 1.0인지 검증."""
     total = sum(weights.values())
     warnings = []
     if abs(total - 1.0) > 0.01:
         warnings.append(
-            f"⚠️ [{name}] 가중치 합계가 {total:.3f}입니다 (기대값: 1.000). "
-            f"결과가 부정확할 수 있습니다."
+            f"⚠️ [{name}] 가중치 합계가 {total:.3f}입니다. "
+            f"기대값은 1.000입니다."
         )
     return warnings
 
 
 def clip_score(score: float) -> float:
-    """Risk Score를 0~100 범위로 clip."""
-    return float(np.clip(score, 0.0, 100.0))
+    """Risk Score를 0~100 범위로 제한."""
+    try:
+        return float(np.clip(score, 0.0, 100.0))
+    except Exception:
+        return 0.0
 
 
 def grade(score: float) -> str:
@@ -83,145 +90,142 @@ def calc_manpower_risk(
     enlist_df: pd.DataFrame,
     exempt_df: pd.DataFrame,
     population_df: pd.DataFrame = None,
-) -> pd.DataFrame:
+) -> tuple:
     """
     지방청별 인력 Risk Score 계산.
 
-    exam_df: 병역판정검사 (연도, 지방청, 처분인원, 현역, 병역면제, 재신체검사)
-    enlist_df: 입영현황 (지방청, 입영실통지, 입영, 행방불명, 기피)
-    exempt_df: 병역면제 (지방청, 계)
-    population_df: 행정안전부 인구 (지방청, 총인구, 남성20대, 병역자원비율) — 선택
+    exam_df: 병역판정검사
+    enlist_df: 현역병 입영현황
+    exempt_df: 병역면제자 관리현황
+    population_df: 행정안전부 인구 데이터
     """
     warnings = validate_weights(WEIGHTS_MANPOWER, "인력 Risk")
     results = []
 
-    # 연도 범위: 최신 연도 vs 가장 오래된 연도 (최대 7년) 비교
-    # → 단순 전년 대비가 아닌 중장기 감소 추세 반영
-    years = sorted(exam_df["연도"].unique())
+    if exam_df is None or exam_df.empty:
+        return pd.DataFrame(), ["병역판정검사 데이터가 없습니다."]
+
+    if "연도" not in exam_df.columns or "지방청" not in exam_df.columns:
+        return pd.DataFrame(), ["병역판정검사 데이터에 연도 또는 지방청 컬럼이 없습니다."]
+
+    years = sorted(exam_df["연도"].dropna().unique())
+    if not years:
+        return pd.DataFrame(), ["병역판정검사 데이터에서 연도 정보를 찾을 수 없습니다."]
+
     latest_year = years[-1]
-    # 기준 연도: 최신 연도 기준 최대 6년 전 (데이터가 없으면 가장 오래된 연도)
     target_base_year = latest_year - 6
     base_candidates = [y for y in years if y <= target_base_year]
     prev_year = base_candidates[-1] if base_candidates else years[0]
-    year_gap = max(latest_year - prev_year, 1)  # 연수 차이 (0 방지)
+    year_gap = max(latest_year - prev_year, 1)
 
     latest_exam = exam_df[exam_df["연도"] == latest_year]
-    prev_exam   = exam_df[exam_df["연도"] == prev_year]
+    prev_exam = exam_df[exam_df["연도"] == prev_year]
 
-    regions = latest_exam["지방청"].unique()
+    regions = latest_exam["지방청"].dropna().unique()
 
     for region in regions:
-        row_now  = latest_exam[latest_exam["지방청"] == region]
+        row_now = latest_exam[latest_exam["지방청"] == region]
         row_prev = prev_exam[prev_exam["지방청"] == region]
-        row_enl  = enlist_df[enlist_df["지방청"] == region] if enlist_df is not None else pd.DataFrame()
-        row_ex   = exempt_df[exempt_df["지방청"] == region] if exempt_df is not None else pd.DataFrame()
+        row_enl = enlist_df[enlist_df["지방청"] == region] if enlist_df is not None and not enlist_df.empty and "지방청" in enlist_df.columns else pd.DataFrame()
+        row_ex = exempt_df[exempt_df["지방청"] == region] if exempt_df is not None and not exempt_df.empty and "지방청" in exempt_df.columns else pd.DataFrame()
 
         if row_now.empty:
             continue
 
-        # ① 입영인원 감소율 (현역 기준, 기준연도 대비 최신연도)
-        exam_now  = float(row_now["현역"].values[0]) if "현역" in row_now.columns else 0
-        exam_prev = float(row_prev["현역"].values[0]) if (not row_prev.empty and "현역" in row_prev.columns) else exam_now
-        # 연간 평균 감소율로 정규화 (연수 차이로 나눔 → 연평균 % 감소)
-        raw_감소율 = safe_divide(exam_prev - exam_now, exam_prev + 1e-9) * 100
-        입영_감소율 = clip_score(raw_감소율 * (6 / year_gap))  # 6년 기준 정규화
+        exam_now = float(row_now["현역"].values[0]) if "현역" in row_now.columns else 0.0
+        exam_prev = float(row_prev["현역"].values[0]) if not row_prev.empty and "현역" in row_prev.columns else exam_now
 
-        # ② 병역판정검사 감소율 (기준연도 대비)
-        proc_now  = float(row_now["처분인원"].values[0]) if "처분인원" in row_now.columns else 0
-        proc_prev = float(row_prev["처분인원"].values[0]) if (not row_prev.empty and "처분인원" in row_prev.columns) else proc_now
+        raw_입영감소 = safe_divide(exam_prev - exam_now, exam_prev + 1e-9) * 100
+        입영_감소율 = clip_score(raw_입영감소 * (6 / year_gap))
+
+        proc_now = float(row_now["처분인원"].values[0]) if "처분인원" in row_now.columns else 0.0
+        proc_prev = float(row_prev["처분인원"].values[0]) if not row_prev.empty and "처분인원" in row_prev.columns else proc_now
+
         raw_검사감소 = safe_divide(proc_prev - proc_now, proc_prev + 1e-9) * 100
-        검사_감소율 = clip_score(raw_검사감소 * (6 / year_gap))  # 6년 기준 정규화
+        검사_감소율 = clip_score(raw_검사감소 * (6 / year_gap))
 
-        # ③ 병역면제율 (면제자 / 처분인원)
-        exempt_total = float(row_ex["계"].values[0]) if (not row_ex.empty and "계" in row_ex.columns) else 0
-        exam_면제 = float(row_now["병역면제"].values[0]) if "병역면제" in row_now.columns else 0
+        exam_면제 = float(row_now["병역면제"].values[0]) if "병역면제" in row_now.columns else 0.0
         면제율 = clip_score(safe_divide(exam_면제, proc_now) * 100)
 
-        # ④ 재신체검사율
-        재검 = float(row_now["재신체검사"].values[0]) if "재신체검사" in row_now.columns else 0
+        재검 = float(row_now["재신체검사"].values[0]) if "재신체검사" in row_now.columns else 0.0
         재검율 = clip_score(safe_divide(재검, proc_now) * 100)
 
-        # ⑤ 입영 차질률 ((행방불명+기피) / 입영실통지)
-        miss  = float(row_enl["행방불명"].values[0]) if (not row_enl.empty and "행방불명" in row_enl.columns) else 0
-        evas  = float(row_enl["기피"].values[0])    if (not row_enl.empty and "기피" in row_enl.columns) else 0
-        notif = float(row_enl["입영실통지"].values[0]) if (not row_enl.empty and "입영실통지" in row_enl.columns) else 1
+        miss = float(row_enl["행방불명"].values[0]) if not row_enl.empty and "행방불명" in row_enl.columns else 0.0
+        evas = float(row_enl["기피"].values[0]) if not row_enl.empty and "기피" in row_enl.columns else 0.0
+        notif = float(row_enl["입영실통지"].values[0]) if not row_enl.empty and "입영실통지" in row_enl.columns else 1.0
         차질률 = clip_score(safe_divide(miss + evas, notif) * 100)
 
-        # ⑥ 인구 대비 병역자원 비율 보정 (행정안전부 데이터)
-        # 20대 남성 비율이 낮을수록 인력 부족 위험 → 높은 점수
         pop_penalty = 0.0
-        if population_df is not None and not population_df.empty:
+        if population_df is not None and not population_df.empty and "지방청" in population_df.columns:
             pop_row = population_df[population_df["지방청"] == region]
             if not pop_row.empty and "병역자원비율" in pop_row.columns:
                 ratio = float(pop_row["병역자원비율"].values[0])
-                # 평균 비율(전국 약 7%) 대비 낮을수록 위험
-                # 5% 이하 → 40점, 7% → 0점, 9% 이상 → -20점(보정)
                 pop_penalty = clip_score((7.0 - ratio) / 7.0 * 40)
 
         score = (
-            WEIGHTS_MANPOWER["입영인원_감소율"]     * 입영_감소율 +
+            WEIGHTS_MANPOWER["입영인원_감소율"] * 입영_감소율 +
             WEIGHTS_MANPOWER["병역판정검사_감소율"] * 검사_감소율 +
-            WEIGHTS_MANPOWER["병역면제율"]          * 면제율 +
-            WEIGHTS_MANPOWER["재신체검사율"]        * 재검율 +
-            WEIGHTS_MANPOWER["입영_차질률"]         * 차질률
+            WEIGHTS_MANPOWER["병역면제율"] * 면제율 +
+            WEIGHTS_MANPOWER["재신체검사율"] * 재검율 +
+            WEIGHTS_MANPOWER["입영_차질률"] * 차질률
         )
-        # 인구 보정 (가중치 10% 반영)
+
+        # 행안부 인구 보정 10% 반영
         score = score * 0.9 + pop_penalty * 0.1
 
         results.append({
             "지방청": region,
-            "입영인원_감소율":     round(입영_감소율, 2),
+            "입영인원_감소율": round(입영_감소율, 2),
             "병역판정검사_감소율": round(검사_감소율, 2),
-            "병역면제율":          round(면제율, 2),
-            "재신체검사율":        round(재검율, 2),
-            "입영_차질률":         round(차질률, 2),
-            "인구_보정점수":       round(pop_penalty, 2),
+            "병역면제율": round(면제율, 2),
+            "재신체검사율": round(재검율, 2),
+            "입영_차질률": round(차질률, 2),
+            "인구_보정점수": round(pop_penalty, 2),
             "인력Risk": round(clip_score(score), 2),
         })
 
-    result_df = pd.DataFrame(results)
-    return result_df, warnings
+    return pd.DataFrame(results), warnings
 
 
 # ─────────────────────────────────────────────
-# 감염병 Disruption Coefficient (DC)
+# 감염병 Disruption Coefficient
 # ─────────────────────────────────────────────
 
 def calc_disease_dc(
-    regional_df: pd.DataFrame,              # 시도별 발생현황 (시도, 총발생률) — 표시용
-    national_weighted: float,               # 질병별 등급 가중합
-    influenza_df: pd.DataFrame,             # 인플루엔자 (절기, 최대분율, 평균분율)
-    ari_series: pd.Series,                  # 급성호흡기 (연도 index, 총합계)
-    jibang_disease_df: pd.DataFrame = None, # 지방청별 총발생률 (aggregate_disease_by_jibang 결과)
+    regional_df: pd.DataFrame,
+    national_weighted: float,
+    influenza_df: pd.DataFrame,
+    ari_series: pd.Series,
+    jibang_disease_df: pd.DataFrame = None,
 ) -> tuple:
     """
     감염병 Disruption Coefficient 계산.
-    반환: (dc_score_national, regional_df_scored, jibang_dc_df, components, warnings)
-    - dc_score_national: 전국 대표값 (fallback용)
-    - jibang_dc_df: 지방청별 감염병DC DataFrame [지방청, 발생률지수, 감염병DC]
+    반환: dc_score_national, regional_df_scored, jibang_dc_df, components, warnings
     """
     warnings = validate_weights(WEIGHTS_DISEASE, "감염병 DC")
 
-    # ── 공통 국가 수준 지표 ──────────────────────
-    # ② 질병 등급 가중합 → 100점 스케일
-    # 실데이터 기준: 2358 → 약 45점, 5000 → 약 60점, 10000 → 100점
-    grade_score = clip_score(np.log1p(national_weighted) / np.log1p(10000) * 100) if national_weighted > 0 else 0.0
+    # ② 질병 등급 가중합
+    try:
+        grade_score = clip_score(
+            np.log1p(national_weighted) / np.log1p(10000) * 100
+        ) if national_weighted and national_weighted > 0 else 0.0
+    except Exception:
+        grade_score = 0.0
 
     # ③ 인플루엔자 유행강도
-    # 전체 절기 중 최대분율 대비 최신 절기 최대분율 비율로 정규화
     if influenza_df is not None and not influenza_df.empty:
-        all_max = influenza_df["최대분율"].dropna()
-        latest_max = float(all_max.iloc[-1])
-        historical_max = float(all_max.max()) if len(all_max) > 0 else 100
-        # 역사적 최대 대비 현재 비율 → 0~60점 스케일
-        flu_score = clip_score(safe_divide(latest_max, historical_max) * 60)
+        if "최대분율" in influenza_df.columns:
+            flu_score = clip_score(float(influenza_df["최대분율"].max()) * 2)
+        elif "평균분율" in influenza_df.columns:
+            flu_score = clip_score(float(influenza_df["평균분율"].max()) * 2)
+        else:
+            flu_score = 30.0
     else:
         flu_score = 30.0
 
-    # ④ 급성호흡기 트렌드 (최근 2년 대비 증감)
+    # ④ 급성호흡기 트렌드
     if ari_series is not None and len(ari_series) >= 2:
         vals = ari_series.sort_index().values
-        # 전체 범위 대비 현재 수준으로 정규화
         current = vals[-1]
         historical_max = max(vals)
         ari_score = clip_score(safe_divide(current, historical_max) * 60)
@@ -230,116 +234,146 @@ def calc_disease_dc(
 
     def _dc_from_regional_index(regional_idx: float) -> float:
         return clip_score(
-            WEIGHTS_DISEASE["지역별_발생률"]        * regional_idx +
-            WEIGHTS_DISEASE["질병_등급_가중합"]      * grade_score +
+            WEIGHTS_DISEASE["지역별_발생률"] * regional_idx +
+            WEIGHTS_DISEASE["질병_등급_가중합"] * grade_score +
             WEIGHTS_DISEASE["인플루엔자_유행_강도"] * flu_score +
-            WEIGHTS_DISEASE["급성호흡기_트렌드"]    * ari_score
+            WEIGHTS_DISEASE["급성호흡기_트렌드"] * ari_score
         )
 
-    # ── ① 지방청별 발생률 지수 및 DC ────────────
     jibang_dc_df = None
+
+    # 지방청별 감염병 DC
     if jibang_disease_df is not None and not jibang_disease_df.empty and "총발생률" in jibang_disease_df.columns:
-        max_rate = jibang_disease_df["총발생률"].max()
         jd = jibang_disease_df.copy()
-        # 절대값 기준 정규화: 1000 이하=0점, 1600 이상=100점
-        RATE_MIN = 800.0   # 정상 기준
-        RATE_MAX = 1600.0  # 위험 기준 (실데이터 최대치 기반)
+
+        RATE_MIN = 800.0
+        RATE_MAX = 1600.0
+
         jd["발생률지수"] = jd["총발생률"].apply(
             lambda x: clip_score(safe_divide(x - RATE_MIN, RATE_MAX - RATE_MIN) * 100)
         )
         jd["감염병DC"] = jd["발생률지수"].apply(_dc_from_regional_index).round(2)
+
         jibang_dc_df = jd[["지방청", "발생률지수", "감염병DC"]]
         avg_regional = jd["발생률지수"].mean()
+
     elif regional_df is not None and not regional_df.empty and "총발생률" in regional_df.columns:
-        # 지방청 매핑 없이 시도 평균으로 fallback
-        max_rate = regional_df["총발생률"].max()
         regional_df = regional_df.copy()
+        max_rate = regional_df["총발생률"].max()
         regional_df["발생률지수"] = regional_df["총발생률"].apply(
             lambda x: clip_score(safe_divide(x, max_rate) * 100)
         )
         avg_regional = regional_df["발생률지수"].mean()
+
     else:
         regional_df = pd.DataFrame()
         avg_regional = 50.0
 
-    # ── 시도별 표시용 regional_df 정규화 ─────────
     if regional_df is not None and not regional_df.empty and "총발생률" in regional_df.columns and "발생률지수" not in regional_df.columns:
-        max_rate = regional_df["총발생률"].max()
         regional_df = regional_df.copy()
+        max_rate = regional_df["총발생률"].max()
         regional_df["발생률지수"] = regional_df["총발생률"].apply(
             lambda x: clip_score(safe_divide(x, max_rate) * 100)
         )
 
-    # 전국 대표 DC (fallback/디스플레이용)
     dc_score_national = _dc_from_regional_index(avg_regional)
 
     components = {
         "지역별_발생률_지수(전국평균)": round(avg_regional, 2),
-        "질병_등급_가중합_지수":        round(grade_score, 2),
-        "인플루엔자_강도_지수":         round(flu_score, 2),
-        "급성호흡기_트렌드_지수":       round(ari_score, 2),
+        "질병_등급_가중합_지수": round(grade_score, 2),
+        "인플루엔자_강도_지수": round(flu_score, 2),
+        "급성호흡기_트렌드_지수": round(ari_score, 2),
     }
 
     return dc_score_national, regional_df, jibang_dc_df, components, warnings
 
 
 # ─────────────────────────────────────────────
-# 물자 Risk Score (전국 단위)
+# 물자 Risk Score
 # ─────────────────────────────────────────────
 
 def calc_material_risk(
-    domestic: dict,     # parse_dapa_domestic 결과
-    foreign: dict,      # parse_dapa_foreign 결과
-    strategic: dict,    # parse_strategic_goods 결과
+    domestic: dict,
+    foreign: dict,
+    strategic: dict,
+    bidders: dict = None,
 ) -> tuple:
     """
     방위사업청 기반 전국 물자 Risk Score.
     지역 단위 없음 → 전국 단일값. 모든 지방청에 동일 적용.
+
+    활용 데이터:
+    - 국내조달 계약정보
+    - 국외조달 계약정보
+    - 국내조달 입찰참여업체정보
+    - 전략물자 품목키워드 및 개정정보
     """
     warnings = validate_weights(WEIGHTS_MATERIAL, "물자 Risk")
 
-    total_domestic = domestic.get("총건수", 1)
-    total_foreign  = foreign.get("국외총건수", 0)
-    total_all      = total_domestic + total_foreign
+    if domestic is None:
+        domestic = {}
+    if foreign is None:
+        foreign = {}
+    if strategic is None:
+        strategic = {}
+    if bidders is None:
+        bidders = {}
 
-    # ① 국내조달 계약 감소율: 데이터 단년이므로 국외 대비 국내 비중으로 대리
-    # (국내 비중이 낮을수록 위험 → 역수)
+    total_domestic = domestic.get("총건수", 1) or 1
+    total_foreign = foreign.get("국외총건수", 0) or 0
+    total_all = total_domestic + total_foreign
+
+    if total_all <= 0:
+        total_all = 1
+
+    # ① 국내조달 계약 감소율
+    # 단년 데이터이므로 국내조달 비중이 낮을수록 위험하다고 대리 산출
     내외비율 = safe_divide(total_domestic, total_all) * 100
-    국내감소율지수 = clip_score(100 - 내외비율)  # 국내 비중 낮을수록 위험
+    국내감소율지수 = clip_score(100 - 내외비율)
 
     # ② 국외조달 의존도
     국외의존도 = clip_score(safe_divide(total_foreign, total_all) * 100)
 
-    # ③ 공급업체 집중도 (상위 5개 업체 점유율)
-    company_counts = domestic.get("업체별건수", pd.Series(dtype=float))
-    if len(company_counts) > 0:
-        top5_share = safe_divide(company_counts.head(5).sum(), total_domestic) * 100
-        집중도 = clip_score(top5_share)
+    # ③ 공급업체 집중도
+    # 입찰참여업체정보가 있으면 공급업체 다양성지수 우선 사용
+    if "공급업체다양성지수" in bidders:
+        supplier_diversity = bidders.get("공급업체다양성지수", 50.0)
+        집중도 = clip_score(100 - supplier_diversity)
     else:
-        집중도 = 50.0
+        supplier_diversity = None
+        company_counts = domestic.get("업체별건수", pd.Series(dtype=float))
+        if len(company_counts) > 0:
+            top5_share = safe_divide(company_counts.head(5).sum(), total_domestic) * 100
+            집중도 = clip_score(top5_share)
+        else:
+            집중도 = 50.0
 
     # ④ 수의계약 의존도
-    수의건수 = domestic.get("수의계약건수", 0)
+    수의건수 = domestic.get("수의계약건수", 0) or 0
     수의의존도 = clip_score(safe_divide(수의건수, total_domestic) * 100)
 
-    # ⑤ 전략물자 관련 계약 비율 (전략물자 품목 수 / 전체계약 × 스케일)
-    전략품목수 = strategic.get("전략물자품목수", 0)
-    전략비율 = clip_score(safe_divide(전략품목수, total_domestic) * 1000)  # 스케일 조정
+    # ⑤ 전략물자 관련 계약 비율
+    전략품목수 = strategic.get("전략물자품목수", 0) or 0
+    전략비율 = clip_score(safe_divide(전략품목수, total_domestic) * 1000)
 
     score = (
-        WEIGHTS_MATERIAL["국내조달_계약_감소율"]   * 국내감소율지수 +
-        WEIGHTS_MATERIAL["국외조달_의존도"]         * 국외의존도 +
-        WEIGHTS_MATERIAL["공급업체_집중도"]         * 집중도 +
-        WEIGHTS_MATERIAL["수의계약_의존도"]         * 수의의존도 +
+        WEIGHTS_MATERIAL["국내조달_계약_감소율"] * 국내감소율지수 +
+        WEIGHTS_MATERIAL["국외조달_의존도"] * 국외의존도 +
+        WEIGHTS_MATERIAL["공급업체_집중도"] * 집중도 +
+        WEIGHTS_MATERIAL["수의계약_의존도"] * 수의의존도 +
         WEIGHTS_MATERIAL["전략물자_관련_계약_비율"] * 전략비율
     )
 
     components = {
-        "국내조달_감소율지수":  round(국내감소율지수, 2),
-        "국외조달_의존도":      round(국외의존도, 2),
-        "공급업체_집중도":      round(집중도, 2),
-        "수의계약_의존도":      round(수의의존도, 2),
-        "전략물자_비율_지수":   round(전략비율, 2),
+        "국내조달_감소율지수": round(국내감소율지수, 2),
+        "국외조달_의존도": round(국외의존도, 2),
+        "공급업체_집중도": round(집중도, 2),
+        "공급업체_다양성지수": round(supplier_diversity, 2) if supplier_diversity is not None else None,
+        "입찰_총업체수": bidders.get("총입찰업체수", 0),
+        "입찰_고유업체수": bidders.get("고유업체수", 0),
+        "입찰_HHI": bidders.get("허핀달지수", None),
+        "수의계약_의존도": round(수의의존도, 2),
+        "전략물자_비율_지수": round(전략비율, 2),
     }
 
     return clip_score(score), components, warnings
@@ -350,18 +384,18 @@ def calc_material_risk(
 # ─────────────────────────────────────────────
 
 def calc_integrated_risk(
-    manpower_df: pd.DataFrame,              # 지방청별 인력Risk 포함
-    disease_dc: float,                      # 전국 감염병 DC (지방청 매핑 없을 때 fallback)
-    material_score: float,                  # 전국 물자 Risk
-    jibang_dc_df: pd.DataFrame = None,      # 지방청별 감염병DC [지방청, 감염병DC]
-) -> pd.DataFrame:
+    manpower_df: pd.DataFrame,
+    disease_dc: float,
+    material_score: float,
+    jibang_dc_df: pd.DataFrame = None,
+) -> tuple:
     """
     지방청별 통합 Risk Score 계산.
-    jibang_dc_df가 있으면 지방청별 감염병DC를 각각 적용.
-    매핑이 없는 지방청은 전국 대표값(disease_dc)으로 fallback.
-    물자는 지역 데이터 없으므로 전국 단일값 동일 적용.
     """
     warnings = validate_weights(WEIGHTS_INTEGRATED, "통합 Risk")
+
+    if manpower_df is None or manpower_df.empty:
+        return pd.DataFrame(), ["인력 Risk 데이터가 없습니다."]
 
     result = manpower_df.copy()
 
@@ -372,9 +406,9 @@ def calc_integrated_risk(
         unmatched = result[result["감염병DC"].isna()]["지방청"].tolist()
         if unmatched:
             warnings.append(
-                f"지방청-DC 매핑 실패 (전국 대표값 적용): {unmatched}. "
-                f"jibang_dc_df 보유 지방청: {dc_lookup['지방청'].tolist()}"
+                f"지방청-DC 매핑 실패. 전국 대표값 적용: {unmatched}"
             )
+
         result["감염병DC"] = result["감염병DC"].fillna(round(disease_dc, 2))
     else:
         result["감염병DC"] = round(disease_dc, 2)
@@ -383,18 +417,20 @@ def calc_integrated_risk(
 
     result["통합Risk"] = result.apply(
         lambda r: clip_score(
-            WEIGHTS_INTEGRATED["인력"]   * r["인력Risk"] +
+            WEIGHTS_INTEGRATED["인력"] * r["인력Risk"] +
             WEIGHTS_INTEGRATED["감염병"] * r["감염병DC"] +
-            WEIGHTS_INTEGRATED["물자"]   * material_score
-        ), axis=1
+            WEIGHTS_INTEGRATED["물자"] * material_score
+        ),
+        axis=1
     ).round(2)
 
     result["위험등급"] = result["통합Risk"].apply(grade)
+
     return result, warnings
 
 
 # ─────────────────────────────────────────────
-# 시뮬레이션 데이터 생성 (실제 데이터 없을 때 데모용)
+# 시뮬레이션 데이터 생성
 # ─────────────────────────────────────────────
 
 DEMO_REGIONS = [
@@ -407,7 +443,7 @@ DEMO_REGIONS = [
 def generate_simulation_data(seed: int = 42) -> pd.DataFrame:
     """
     시뮬레이션 데이터 생성.
-    가중치 공식을 그대로 적용해서 현실적 분포 생성.
+    실제 데이터가 없을 때 데모용으로 사용.
     """
     rng = np.random.default_rng(seed)
 
@@ -416,18 +452,20 @@ def generate_simulation_data(seed: int = 42) -> pd.DataFrame:
         mp_score = float(rng.uniform(10, 80))
         dc_score = float(rng.uniform(15, 70))
         mat_score = float(rng.uniform(20, 60))
+
         integrated = clip_score(
-            WEIGHTS_INTEGRATED["인력"]   * mp_score +
+            WEIGHTS_INTEGRATED["인력"] * mp_score +
             WEIGHTS_INTEGRATED["감염병"] * dc_score +
-            WEIGHTS_INTEGRATED["물자"]   * mat_score
+            WEIGHTS_INTEGRATED["물자"] * mat_score
         )
+
         rows.append({
-            "지방청":    region,
-            "인력Risk":  round(mp_score, 2),
-            "감염병DC":  round(dc_score, 2),
-            "물자Risk":  round(mat_score, 2),
-            "통합Risk":  round(integrated, 2),
-            "위험등급":  grade(integrated),
+            "지방청": region,
+            "인력Risk": round(mp_score, 2),
+            "감염병DC": round(dc_score, 2),
+            "물자Risk": round(mat_score, 2),
+            "통합Risk": round(integrated, 2),
+            "위험등급": grade(integrated),
         })
 
     return pd.DataFrame(rows)
