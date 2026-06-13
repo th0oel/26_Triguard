@@ -89,15 +89,15 @@ def calc_manpower_risk(exam_df: pd.DataFrame, enlist_df: pd.DataFrame, exempt_df
     warnings = validate_weights(WEIGHTS_MANPOWER, "인력 Risk")
     results = []
 
-    # 최신 2개 연도 추출
+    # 연도 범위: 최신 연도 vs 가장 오래된 연도 (최대 7년) 비교
+    # → 단순 전년 대비가 아닌 중장기 감소 추세 반영
     years = sorted(exam_df["연도"].unique())
-    if len(years) < 2:
-        # 연도가 1개뿐이면 감소율=0으로 처리
-        latest_year = years[-1]
-        prev_year = latest_year
-    else:
-        latest_year = years[-1]
-        prev_year = years[-2]
+    latest_year = years[-1]
+    # 기준 연도: 최신 연도 기준 최대 6년 전 (데이터가 없으면 가장 오래된 연도)
+    target_base_year = latest_year - 6
+    base_candidates = [y for y in years if y <= target_base_year]
+    prev_year = base_candidates[-1] if base_candidates else years[0]
+    year_gap = max(latest_year - prev_year, 1)  # 연수 차이 (0 방지)
 
     latest_exam = exam_df[exam_df["연도"] == latest_year]
     prev_exam   = exam_df[exam_df["연도"] == prev_year]
@@ -113,17 +113,18 @@ def calc_manpower_risk(exam_df: pd.DataFrame, enlist_df: pd.DataFrame, exempt_df
         if row_now.empty:
             continue
 
-        # ① 입영인원 감소율
-        enlist_now  = row_enl["입영"].values[0] if (not row_enl.empty and "입영" in row_enl.columns) else 0
-        # 입영 데이터가 단년이라 prev 없음 → exam의 현역으로 대리
+        # ① 입영인원 감소율 (현역 기준, 기준연도 대비 최신연도)
         exam_now  = float(row_now["현역"].values[0]) if "현역" in row_now.columns else 0
         exam_prev = float(row_prev["현역"].values[0]) if (not row_prev.empty and "현역" in row_prev.columns) else exam_now
-        입영_감소율 = clip_score(safe_divide(exam_prev - exam_now, exam_prev + 1e-9) * 100)
+        # 연간 평균 감소율로 정규화 (연수 차이로 나눔 → 연평균 % 감소)
+        raw_감소율 = safe_divide(exam_prev - exam_now, exam_prev + 1e-9) * 100
+        입영_감소율 = clip_score(raw_감소율 * (6 / year_gap))  # 6년 기준 정규화
 
-        # ② 병역판정검사 감소율
+        # ② 병역판정검사 감소율 (기준연도 대비)
         proc_now  = float(row_now["처분인원"].values[0]) if "처분인원" in row_now.columns else 0
         proc_prev = float(row_prev["처분인원"].values[0]) if (not row_prev.empty and "처분인원" in row_prev.columns) else proc_now
-        검사_감소율 = clip_score(safe_divide(proc_prev - proc_now, proc_prev + 1e-9) * 100)
+        raw_검사감소 = safe_divide(proc_prev - proc_now, proc_prev + 1e-9) * 100
+        검사_감소율 = clip_score(raw_검사감소 * (6 / year_gap))  # 6년 기준 정규화
 
         # ③ 병역면제율 (면제자 / 처분인원)
         exempt_total = float(row_ex["계"].values[0]) if (not row_ex.empty and "계" in row_ex.columns) else 0
@@ -183,20 +184,27 @@ def calc_disease_dc(
 
     # ── 공통 국가 수준 지표 ──────────────────────
     # ② 질병 등급 가중합 → 100점 스케일
-    grade_score = clip_score(np.log1p(national_weighted) * 5) if national_weighted > 0 else 0.0
+    # 실데이터 기준: 2358 → 약 45점, 5000 → 약 60점, 10000 → 100점
+    grade_score = clip_score(np.log1p(national_weighted) / np.log1p(10000) * 100) if national_weighted > 0 else 0.0
 
     # ③ 인플루엔자 유행강도
+    # 전체 절기 중 최대분율 대비 최신 절기 최대분율 비율로 정규화
     if influenza_df is not None and not influenza_df.empty:
-        latest_max = influenza_df["최대분율"].dropna().iloc[-1] if len(influenza_df) > 0 else 0
-        flu_score = clip_score(float(latest_max) * 2.5)
+        all_max = influenza_df["최대분율"].dropna()
+        latest_max = float(all_max.iloc[-1])
+        historical_max = float(all_max.max()) if len(all_max) > 0 else 100
+        # 역사적 최대 대비 현재 비율 → 0~60점 스케일
+        flu_score = clip_score(safe_divide(latest_max, historical_max) * 60)
     else:
         flu_score = 30.0
 
-    # ④ 급성호흡기 트렌드
+    # ④ 급성호흡기 트렌드 (최근 2년 대비 증감)
     if ari_series is not None and len(ari_series) >= 2:
         vals = ari_series.sort_index().values
-        ari_trend = safe_divide(vals[-1] - vals[-2], vals[-2] + 1e-9) * 100
-        ari_score = clip_score(50 + ari_trend)
+        # 전체 범위 대비 현재 수준으로 정규화
+        current = vals[-1]
+        historical_max = max(vals)
+        ari_score = clip_score(safe_divide(current, historical_max) * 60)
     else:
         ari_score = 30.0
 
@@ -213,8 +221,11 @@ def calc_disease_dc(
     if jibang_disease_df is not None and not jibang_disease_df.empty and "총발생률" in jibang_disease_df.columns:
         max_rate = jibang_disease_df["총발생률"].max()
         jd = jibang_disease_df.copy()
+        # 절대값 기준 정규화: 1000 이하=0점, 1600 이상=100점
+        RATE_MIN = 800.0   # 정상 기준
+        RATE_MAX = 1600.0  # 위험 기준 (실데이터 최대치 기반)
         jd["발생률지수"] = jd["총발생률"].apply(
-            lambda x: clip_score(safe_divide(x, max_rate) * 100)
+            lambda x: clip_score(safe_divide(x - RATE_MIN, RATE_MAX - RATE_MIN) * 100)
         )
         jd["감염병DC"] = jd["발생률지수"].apply(_dc_from_regional_index).round(2)
         jibang_dc_df = jd[["지방청", "발생률지수", "감염병DC"]]
