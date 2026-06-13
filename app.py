@@ -22,6 +22,7 @@ from modules.preprocess import (
     parse_dapa_domestic,
     parse_dapa_foreign,
     parse_strategic_goods,
+    parse_population,
     aggregate_disease_by_jibang,
 )
 from modules.ml_engine import (
@@ -137,10 +138,10 @@ with st.sidebar:
 
     if mode == "실제 데이터 모드":
         if auto_count > 0:
-            st.success(f"✅ {auto_count}개 파일 자동 감지")
+            st.success(f"✅ data/ 폴더에서 {auto_count}개 파일 자동 감지")
             use_auto = st.toggle("자동 로드 사용", value=True)
         else:
-            st.info("CSV가 없습니다. 직접 업로드하세요.")
+            st.info("data/ 폴더에 CSV가 없습니다. 직접 업로드하세요.")
             use_auto = False
 
         if not use_auto or auto_count == 0:
@@ -307,6 +308,15 @@ if raw is not None:
     except Exception as e:
         st.error(f"전략물자 로드 오류: {e}")
 
+population_df = None
+raw = _load_raw("population", None)
+if raw is not None:
+    try:
+        population_df = parse_population(raw)
+        st.success(f"인구 데이터 로드 완료: {len(population_df)}개 지방청")
+    except Exception as e:
+        st.error(f"인구 데이터 로드 오류: {e}")
+
 # ─────────────────────────────────────────────
 # Risk Score 계산
 # ─────────────────────────────────────────────
@@ -320,7 +330,7 @@ st.subheader("Risk Score 계산 중...")
 
 with st.spinner("인력 Risk 계산 중..."):
     try:
-        manpower_df, mp_warnings = calc_manpower_risk(exam_df, enlist_df, exempt_df)
+        manpower_df, mp_warnings = calc_manpower_risk(exam_df, enlist_df, exempt_df, population_df)
         all_warnings.extend(mp_warnings)
     except Exception as e:
         st.error(f"인력 Risk 계산 실패: {e}\n{traceback.format_exc()}")
