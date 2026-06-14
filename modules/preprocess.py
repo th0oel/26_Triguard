@@ -549,7 +549,8 @@ def parse_population(df: pd.DataFrame) -> pd.DataFrame:
     male20_col = male20_col[0]
 
     def clean_num(x):
-        return pd.to_numeric(str(x).replace(",", "").strip(), errors="coerce") or 0
+        val = pd.to_numeric(str(x).replace(",", "").strip(), errors="coerce")
+        return 0 if pd.isna(val) else val
 
     rows = []
     for _, row in sido_df.iterrows():
