@@ -157,13 +157,17 @@ with st.sidebar:
             f_flu      = st.file_uploader("인플루엔자_표본감시.csv",     type="csv", key="flu")
             f_ari      = st.file_uploader("급성호흡기감염증.csv",        type="csv", key="ari")
             st.subheader("방위사업청")
-            f_dapa_dom  = st.file_uploader("국내조달_계약정보.csv",   type="csv", key="dapa_dom")
-            f_dapa_for  = st.file_uploader("국외조달_계약정보.csv",   type="csv", key="dapa_for")
-            f_strategic = st.file_uploader("전략물자_품목키워드.csv", type="csv", key="strategic")
+            f_dapa_dom     = st.file_uploader("국내조달_계약정보.csv",            type="csv", key="dapa_dom")
+            f_dapa_for     = st.file_uploader("국외조달_계약정보.csv",            type="csv", key="dapa_for")
+            f_dapa_bidders = st.file_uploader("국내조달_입찰참여업체정보.csv",    type="csv", key="dapa_bidders")
+            f_strategic    = st.file_uploader("전략물자_품목키워드.csv",           type="csv", key="strategic")
+            st.subheader("행정안전부")
+            f_population   = st.file_uploader("행정안전부_연령별_주민등록_인구현황.csv", type="csv", key="population")
         else:
             f_exam = f_enlist = f_exempt = None
             f_regional = f_national = f_flu = f_ari = None
-            f_dapa_dom = f_dapa_for = f_strategic = None
+            f_dapa_dom = f_dapa_for = f_dapa_bidders = f_strategic = None
+            f_population = None
 
         st.divider()
         st.caption("파일 미업로드 시 시뮬레이션 데이터 사용")
@@ -209,7 +213,8 @@ def _load_raw(key, uploaded_file):
 
 if not use_auto:
     uploaded_any = any([f_exam, f_enlist, f_exempt, f_regional, f_national,
-                        f_flu, f_ari, f_dapa_dom, f_dapa_for, f_strategic])
+                        f_flu, f_ari, f_dapa_dom, f_dapa_for, f_dapa_bidders, f_strategic,
+                        f_population])
     if not uploaded_any:
         st.info("👈 사이드바에서 CSV 파일을 업로드하거나 시뮬레이션 모드를 선택하세요.")
         st.stop()
@@ -302,7 +307,7 @@ if raw is not None:
     except Exception as e:
         st.error(f"국외조달 로드 오류: {e}")
 
-raw = _load_raw("dapa_bidders", None)
+raw = _load_raw("dapa_bidders", f_dapa_bidders)
 bidders_info = None
 if raw is not None:
     try:
@@ -320,7 +325,7 @@ if raw is not None:
         st.error(f"전략물자 로드 오류: {e}")
 
 population_df = None
-raw = _load_raw("population", None)
+raw = _load_raw("population", f_population)
 if raw is not None:
     try:
         population_df = parse_population(raw)
@@ -337,7 +342,7 @@ if exam_df is None:
     st.stop()
 
 st.divider()
-st.subheader("Risk Score 계산 중...")
+st.subheader("Risk Score 계산")
 
 with st.spinner("인력 Risk 계산 중..."):
     try:
@@ -375,6 +380,7 @@ with st.spinner("통합 Risk Score 계산 중..."):
         st.error(f"통합 Risk 계산 실패: {e}")
         st.stop()
 
+st.success("✅ Risk Score 계산 완료")
 render_warnings(all_warnings)
 
 # ─────────────────────────────────────────────
