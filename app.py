@@ -120,7 +120,6 @@ st.set_page_config(
 
 st.title("TriGuard AI")
 st.caption("감염병·병역자원 데이터 기반 지역별 병력운용 Risk Score 분석 및 조기경보 시스템")
-st.divider()
 
 # ─────────────────────────────────────────────
 # 자동 로드 여부 확인
@@ -193,10 +192,11 @@ if mode == "시뮬레이션 모드":
     st.info("시뮬레이션 모드로 데이터를 생성합니다.")
     seed = st.slider("시뮬레이션 시드", 0, 100, 42)
     result_df = generate_simulation_data(seed=seed)
-    st.subheader("통합 Risk Score 현황")
+    st.subheader("통합 위험 평가")
     render_kpi_cards(result_df)
     render_result_table(result_df)
-    render_bar_chart(result_df, "통합Risk", "지방청별 통합 Risk Score")
+    render_bar_chart(result_df, "통합Risk", "")
+    st.markdown("---")
     render_response_guide(result_df)
     st.stop()
 
@@ -329,10 +329,8 @@ if exam_df is None:
     st.warning("병역판정검사 데이터가 없어 인력 Risk 계산이 불가합니다. 시뮬레이션 모드를 사용하세요.")
     st.stop()
 
-st.divider()
-st.subheader("Risk Score 계산")
-
-with st.spinner("인력 Risk 계산 중..."):
+with st.spinner("Risk Score 계산 중..."):
+    with st.spinner("인력 Risk 계산 중..."):
     try:
         manpower_df, mp_warnings = calc_manpower_risk(exam_df, enlist_df, exempt_df, population_df)
         all_warnings.extend(mp_warnings)
@@ -371,33 +369,87 @@ with st.spinner("통합 Risk Score 계산 중..."):
 render_warnings(all_warnings)
 
 # ─────────────────────────────────────────────
-# 대시보드 출력
+# 메인 대시보드
 # ─────────────────────────────────────────────
 
-st.divider()
-st.subheader("통합 Risk Score 현황")
+st.subheader("통합 위험 평가")
 render_kpi_cards(result_df)
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "지도", "통합 결과", "인력 세부", "감염병 DC", "물자 Risk", "AI 분석", "대응 가이드"
-])
+tab1, tab2, tab3, tab4 = st.tabs(["지도", "분석 결과", "상세 정보", "대응 가이드"])
 
 with tab1:
-    st.markdown("#### 지방청별 통합 Risk Score 지도")
-    render_map(result_df, "통합Risk", "지방청별 통합 Risk Score")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.markdown("##### 인력 Risk")
-        render_map(result_df, "인력Risk", "인력 Risk Score")
-    with col_b:
-        st.markdown("##### 감염병 DC")
-        render_map(result_df, "감염병DC", "감염병 Disruption Coefficient")
+    st.markdown("#### 지방청별 Risk Score 분포")
+    render_map(result_df, "통합Risk", "")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### 인력 Risk")
+        render_map(result_df, "인력Risk", "")
+    with col2:
+        st.markdown("#### 감염병 Disruption")
+        render_map(result_df, "감염병DC", "")
 
 with tab2:
-    st.markdown("#### 지방청별 통합 Risk Score")
-    render_result_table(result_df)
-    st.markdown("#### 바 차트")
-    render_bar_chart(result_df, "통합Risk", "지방청별 통합 Risk Score")
+    col_left, col_right = st.columns([2, 1])
+    
+    with col_left:
+        st.markdown("#### 지방청별 Risk Score")
+        render_result_table(result_df)
+    
+    with col_right:
+        st.markdown("#### 위험도 분포")
+        render_bar_chart(result_df, "통합Risk", "")
+    
+    st.markdown("---")
+    
+    # AI 분석 결과 (축약)
+    st.markdown("#### AI 분석 결과")
+    
+    with st.spinner("ML 모델 분석 중..."):
+        try:
+            model, scaler, feat_imp_df, cv_score = train_risk_model(result_df)
+            pred_df = predict_risk(model, scaler, result_df)
+            cross_data = cross_agency_correlation(manpower_df, jibang_dc_df)
+            anomaly_df = detect_anomaly_regions(result_df)
+            ml_ok = True
+        except Exception as e:
+            st.error(f"AI 분석 실패: {e}")
+            ml_ok = False
+    
+    if ml_ok:
+        # 예측 결과 요약
+        merged_pred = result_df[["지방청", "통합Risk", "위험등급"]].merge(
+            pred_df[["지방청", "예측등급", "정상_확률", "주의_확률", "위험_확률"]],
+            on="지방청", how="left"
+        )
+        merged_pred["일치"] = merged_pred["위험등급"] == merged_pred["예측등급"]
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            match_rate = (merged_pred["일치"].sum() / len(merged_pred) * 100)
+            st.metric("예측 정확도", f"{match_rate:.0f}%")
+        with col2:
+            st.metric("CV Score", f"{cv_score:.2f}")
+        with col3:
+            if cross_data.get("correlation"):
+                st.metric("인력-감염병 상관계수", f"{cross_data['correlation']:.2f}")
+        
+        # 이상 권역 표시
+        st.caption("주요 위험 지표")
+        col_anom1, col_anom2 = st.columns(2)
+        with col_anom1:
+            if "이상권역" in anomaly_df.columns:
+                anomaly_regions = anomaly_df[anomaly_df["이상권역"]]["지방청"].tolist()
+                if anomaly_regions:
+                    st.warning(f"이상 탐지: {', '.join(anomaly_regions)}")
+                else:
+                    st.info("정상 범위 내 모든 권역")
+        
+        with col_anom2:
+            high_risk = result_df[result_df["위험등급"] == "위험"]["지방청"].tolist()
+            if high_risk:
+                st.error(f"고위험군: {', '.join(high_risk)}")
+    
     st.markdown("---")
     st.download_button(
         "결과 CSV 다운로드",
@@ -407,91 +459,24 @@ with tab2:
     )
 
 with tab3:
-    st.markdown("#### 인력 Risk 세부 지표")
-    render_manpower_detail(manpower_df)
-    if not manpower_df.empty and "인력Risk" in manpower_df.columns:
-        render_bar_chart(result_df, "인력Risk", "지방청별 인력 Risk Score")
-
-with tab4:
-    st.markdown("#### 감염병 Disruption Coefficient")
-    render_disease_components(dc_components, dc_score)
-    if regional_scored is not None and not regional_scored.empty and "발생률지수" in regional_scored.columns:
-        st.dataframe(
-            regional_scored[["시도", "총발생률", "발생률지수"]]
-            .sort_values("발생률지수", ascending=False)
-            .reset_index(drop=True),
-            use_container_width=True
-        )
-
-with tab5:
-    st.markdown("#### 물자 Risk (전국 단위)")
-    st.caption("※ 방위사업청 데이터는 지역 단위 없음 → 전국 단일값을 모든 지방청에 동일 적용")
+    st.markdown("#### 상세 위험 요인 분석")
+    
+    sub_col1, sub_col2 = st.columns(2)
+    
+    with sub_col1:
+        st.markdown("#### 인력 현황")
+        render_manpower_detail(manpower_df)
+    
+    with sub_col2:
+        st.markdown("#### 감염병 현황")
+        render_disease_components(dc_components, dc_score)
+    
+    st.markdown("---")
+    st.markdown("#### 물자 Risk (전국)")
+    st.caption("방위사업청 데이터는 지역 단위 없음 → 전국 단일값 적용")
     render_material_components(mat_components, mat_score)
 
-with tab6:
-    st.markdown("#### AI 위험 예측 분석")
-
-    with st.spinner("RandomForest 모델 학습 중..."):
-        try:
-            model, scaler, feat_imp_df, cv_score = train_risk_model(result_df)
-            pred_df = predict_risk(model, scaler, result_df)
-            cross_data = cross_agency_correlation(manpower_df, jibang_dc_df)
-            trend_df = manpower_disease_trend(exam_df)
-            forecast_df = forecast_manpower(exam_df, forecast_years=3)
-            anomaly_df = detect_anomaly_regions(result_df)
-            ml_ok = True
-        except Exception as e:
-            st.error(f"ML 분석 실패: {e}")
-            ml_ok = False
-
-    if ml_ok:
-        ai_sub = st.tabs(["예측 결과", "피처 중요도", "교차 분석", "트렌드 & 예측", "이상 탐지"])
-
-        with ai_sub[0]:
-            st.markdown("##### Rule-based vs ML 예측 비교")
-            st.caption("Rule-based 점수와 ML 예측 등급이 다른 경우 추가 검토가 필요합니다.")
-            merged_pred = result_df[["지방청", "통합Risk", "위험등급"]].merge(
-                pred_df[["지방청", "예측등급", "정상_확률", "주의_확률", "위험_확률"]],
-                on="지방청", how="left"
-            )
-            merged_pred["불일치"] = merged_pred["위험등급"] != merged_pred["예측등급"]
-            render_ml_prediction(merged_pred, cv_score)
-            mismatch = merged_pred[merged_pred["불일치"]]["지방청"].tolist()
-            if mismatch:
-                st.warning(f"Rule-based와 ML 예측 불일치 권역: {', '.join(mismatch)}")
-            else:
-                st.success("전 권역 Rule-based와 ML 예측 일치")
-
-        with ai_sub[1]:
-            st.markdown("##### 위험 예측 피처 중요도")
-            render_feature_importance(feat_imp_df)
-
-        with ai_sub[2]:
-            st.markdown("##### 3개 기관 데이터 교차 분석")
-            render_cross_agency_scatter(
-                cross_data["scatter_df"],
-                cross_data["correlation"] or 0.0,
-                cross_data["insight"],
-            )
-            if cross_data["high_risk_combo"]:
-                st.error(f"인력·감염병 복합 위험 권역: {', '.join(cross_data['high_risk_combo'])}")
-
-        with ai_sub[3]:
-            st.markdown("##### 전국 처분인원 추세 및 예측")
-            render_manpower_trend(forecast_df)
-            if not trend_df.empty:
-                st.dataframe(trend_df, use_container_width=True)
-
-        with ai_sub[4]:
-            st.markdown("##### 이상 권역 탐지 (Z-score 기반)")
-            st.caption("통합 Risk Score 기준 Z-score ≥ 1.5인 권역을 이상 권역으로 탐지합니다.")
-            render_anomaly_table(anomaly_df)
-            if "이상권역" in anomaly_df.columns:
-                anomaly_regions = anomaly_df[anomaly_df["이상권역"] == True]["지방청"].tolist()
-                if anomaly_regions:
-                    st.info(f"이상 탐지 권역: {', '.join(anomaly_regions)}")
-
-with tab7:
+with tab4:
     st.markdown("#### 위험·주의 권역 대응 가이드")
     render_response_guide(result_df)
 
