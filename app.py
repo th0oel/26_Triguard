@@ -329,8 +329,7 @@ if exam_df is None:
     st.warning("병역판정검사 데이터가 없어 인력 Risk 계산이 불가합니다. 시뮬레이션 모드를 사용하세요.")
     st.stop()
 
-with st.spinner("Risk Score 계산 중..."):
-    with st.spinner("인력 Risk 계산 중..."):
+with st.spinner("인력 Risk 계산 중..."):
     try:
         manpower_df, mp_warnings = calc_manpower_risk(exam_df, enlist_df, exempt_df, population_df)
         all_warnings.extend(mp_warnings)
