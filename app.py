@@ -118,7 +118,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.title("🛡️ TriGuard AI")
+st.title("TriGuard AI")
 st.caption("감염병·병역자원 데이터 기반 지역별 병력운용 Risk Score 분석 및 조기경보 시스템")
 st.divider()
 
@@ -190,10 +190,10 @@ for name, weights in [
 # ─────────────────────────────────────────────
 
 if mode == "시뮬레이션 모드":
-    st.info("시뮬레이션 모드: 랜덤 생성 데이터를 사용합니다.")
+    st.info("시뮬레이션 모드로 데이터를 생성합니다.")
     seed = st.slider("시뮬레이션 시드", 0, 100, 42)
     result_df = generate_simulation_data(seed=seed)
-    st.subheader("📊 통합 Risk Score 현황")
+    st.subheader("통합 Risk Score 현황")
     render_kpi_cards(result_df)
     render_result_table(result_df)
     render_bar_chart(result_df, "통합Risk", "지방청별 통합 Risk Score")
@@ -216,7 +216,7 @@ if not use_auto:
                         f_flu, f_ari, f_dapa_dom, f_dapa_for, f_dapa_bidders, f_strategic,
                         f_population])
     if not uploaded_any:
-        st.info("👈 사이드바에서 CSV 파일을 업로드하거나 시뮬레이션 모드를 선택하세요.")
+        st.info("사이드바에서 CSV 파일을 업로드하거나 시뮬레이션 모드를 선택하세요.")
         st.stop()
 
 # ─────────────────────────────────────────────
@@ -230,7 +230,6 @@ raw = _load_raw("exam", f_exam)
 if raw is not None:
     try:
         exam_df = parse_byungmu_exam(raw)
-        st.success(f"병역판정검사 로드 완료: {len(exam_df)}행")
     except Exception as e:
         st.error(f"병역판정검사 로드 오류: {e}")
 
@@ -238,7 +237,6 @@ raw = _load_raw("enlist", f_enlist)
 if raw is not None:
     try:
         enlist_df = parse_byungmu_enlist(raw)
-        st.success(f"입영현황 로드 완료: {len(enlist_df)}행")
     except Exception as e:
         st.error(f"입영현황 로드 오류: {e}")
 
@@ -246,7 +244,6 @@ raw = _load_raw("exempt", f_exempt)
 if raw is not None:
     try:
         exempt_df = parse_byungmu_exempt(raw)
-        st.success(f"병역면제 로드 완료: {len(exempt_df)}행")
     except Exception as e:
         st.error(f"병역면제 로드 오류: {e}")
 
@@ -258,7 +255,6 @@ raw = _load_raw("regional", f_regional)
 if raw is not None:
     try:
         regional_inc_df = parse_infectious_disease_regional(raw)
-        st.success(f"지역별 감염병 로드 완료: {len(regional_inc_df)}행")
         jibang_disease_df = aggregate_disease_by_jibang(regional_inc_df)
     except Exception as e:
         st.error(f"지역별 감염병 로드 오류: {e}")
@@ -267,7 +263,6 @@ raw = _load_raw("national", f_national)
 if raw is not None:
     try:
         national_weighted = parse_infectious_disease_national(raw)
-        st.success(f"질병별 감염병 로드 완료 (가중합: {national_weighted:.1f})")
     except Exception as e:
         st.error(f"질병별 감염병 로드 오류: {e}")
 
@@ -275,7 +270,6 @@ raw = _load_raw("flu", f_flu)
 if raw is not None:
     try:
         flu_df = parse_influenza(raw)
-        st.success(f"인플루엔자 로드 완료: {len(flu_df)}절기")
     except Exception as e:
         st.error(f"인플루엔자 로드 오류: {e}")
 
@@ -283,7 +277,6 @@ raw = _load_raw("ari", f_ari)
 if raw is not None:
     try:
         ari_series = parse_ari(raw)
-        st.success(f"급성호흡기 로드 완료: {len(ari_series)}년")
     except Exception as e:
         st.error(f"급성호흡기 로드 오류: {e}")
 
@@ -295,7 +288,6 @@ raw = _load_raw("dapa_dom", f_dapa_dom)
 if raw is not None:
     try:
         domestic_info = parse_dapa_domestic(raw)
-        st.success(f"국내조달 로드 완료: {domestic_info['총건수']}건")
     except Exception as e:
         st.error(f"국내조달 로드 오류: {e}")
 
@@ -303,7 +295,6 @@ raw = _load_raw("dapa_for", f_dapa_for)
 if raw is not None:
     try:
         foreign_info = parse_dapa_foreign(raw)
-        st.success(f"국외조달 로드 완료: {foreign_info['국외총건수']}건")
     except Exception as e:
         st.error(f"국외조달 로드 오류: {e}")
 
@@ -312,7 +303,6 @@ bidders_info = None
 if raw is not None:
     try:
         bidders_info = parse_dapa_bidders(raw)
-        st.success(f"입찰참여업체 로드 완료: {bidders_info['고유업체수']:,}개 업체")
     except Exception as e:
         st.error(f"입찰참여업체 로드 오류: {e}")
 
@@ -320,7 +310,6 @@ raw = _load_raw("strategic", f_strategic)
 if raw is not None:
     try:
         strategic_info = parse_strategic_goods(raw)
-        st.success(f"전략물자 로드 완료: {strategic_info['전략물자품목수']}품목")
     except Exception as e:
         st.error(f"전략물자 로드 오류: {e}")
 
@@ -329,7 +318,6 @@ raw = _load_raw("population", f_population)
 if raw is not None:
     try:
         population_df = parse_population(raw)
-        st.success(f"인구 데이터 로드 완료: {len(population_df)}개 지방청")
     except Exception as e:
         st.error(f"인구 데이터 로드 오류: {e}")
 
@@ -380,7 +368,6 @@ with st.spinner("통합 Risk Score 계산 중..."):
         st.error(f"통합 Risk 계산 실패: {e}")
         st.stop()
 
-st.success("✅ Risk Score 계산 완료")
 render_warnings(all_warnings)
 
 # ─────────────────────────────────────────────
@@ -388,11 +375,11 @@ render_warnings(all_warnings)
 # ─────────────────────────────────────────────
 
 st.divider()
-st.subheader("📊 통합 Risk Score 현황")
+st.subheader("통합 Risk Score 현황")
 render_kpi_cards(result_df)
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "🗺️ 지도", "통합 결과", "인력 세부", "감염병 DC", "물자 Risk", "🤖 AI 분석", "대응 가이드"
+    "지도", "통합 결과", "인력 세부", "감염병 DC", "물자 Risk", "AI 분석", "대응 가이드"
 ])
 
 with tab1:
@@ -413,7 +400,7 @@ with tab2:
     render_bar_chart(result_df, "통합Risk", "지방청별 통합 Risk Score")
     st.markdown("---")
     st.download_button(
-        "📥 결과 CSV 다운로드",
+        "결과 CSV 다운로드",
         data=result_df.to_csv(index=False, encoding="utf-8-sig"),
         file_name="triguard_risk_result.csv",
         mime="text/csv",
@@ -442,7 +429,7 @@ with tab5:
     render_material_components(mat_components, mat_score)
 
 with tab6:
-    st.markdown("#### 🤖 AI 위험 예측 분석")
+    st.markdown("#### AI 위험 예측 분석")
 
     with st.spinner("RandomForest 모델 학습 중..."):
         try:
@@ -471,9 +458,9 @@ with tab6:
             render_ml_prediction(merged_pred, cv_score)
             mismatch = merged_pred[merged_pred["불일치"]]["지방청"].tolist()
             if mismatch:
-                st.warning(f"⚠️ Rule-based와 ML 예측 불일치 권역: {', '.join(mismatch)}")
+                st.warning(f"Rule-based와 ML 예측 불일치 권역: {', '.join(mismatch)}")
             else:
-                st.success("✅ 전 권역 Rule-based와 ML 예측 일치")
+                st.success("전 권역 Rule-based와 ML 예측 일치")
 
         with ai_sub[1]:
             st.markdown("##### 위험 예측 피처 중요도")
@@ -487,7 +474,7 @@ with tab6:
                 cross_data["insight"],
             )
             if cross_data["high_risk_combo"]:
-                st.error(f"🚨 인력·감염병 복합 위험 권역: {', '.join(cross_data['high_risk_combo'])}")
+                st.error(f"인력·감염병 복합 위험 권역: {', '.join(cross_data['high_risk_combo'])}")
 
         with ai_sub[3]:
             st.markdown("##### 전국 처분인원 추세 및 예측")
@@ -502,7 +489,7 @@ with tab6:
             if "이상권역" in anomaly_df.columns:
                 anomaly_regions = anomaly_df[anomaly_df["이상권역"] == True]["지방청"].tolist()
                 if anomaly_regions:
-                    st.warning(f"이상 탐지 권역: {', '.join(anomaly_regions)}")
+                    st.info(f"이상 탐지 권역: {', '.join(anomaly_regions)}")
 
 with tab7:
     st.markdown("#### 위험·주의 권역 대응 가이드")
