@@ -4,7 +4,13 @@
 >
 > 2026년 병무청·방위사업청·질병관리청 합동 공공데이터·AI 활용 경진대회 출품작
 
-[![Streamlit](https://img.shields.io/badge/Streamlit-배포중-FF4B4B?logo=streamlit)](https://triguard-ai.streamlit.app)
+## 🔗 데모 링크 (바로 접속 가능)
+
+> **[👉 https://triguard-ai.streamlit.app](https://triguard-ai.streamlit.app)**
+>
+> 별도 설치 없이 브라우저에서 바로 실행됩니다. 시뮬레이션 모드 또는 실제 데이터 모드로 체험 가능합니다.
+
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://triguard-ai.streamlit.app)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python)](https://python.org)
 
 ---
@@ -12,8 +18,6 @@
 ## 개요
 
 병무청·질병관리청·방위사업청·행정안전부·무역안보관리원의 **공공데이터 12종**을 실제로 연동하여 지역별 병력운용 위험도를 정량화하고, AI 기반 조기경보 및 대응 우선순위를 제시하는 웹 기반 의사결정 지원 플랫폼입니다.
-
-🔗 **배포 URL**: https://triguard-ai.streamlit.app
 
 ---
 
