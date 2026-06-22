@@ -330,6 +330,10 @@ RESPONSE_GUIDE = {
 
 
 def render_response_guide(result_df: pd.DataFrame):
+    st.markdown(
+        "> **지역별 맞춤 분석** — 각 권역의 인력·감염병·물자 위험 점수를 개별 산출하여 "
+        "해당 권역의 최우선 위험 요인 중심 대응 조치를 제시합니다."
+    )
     st.caption(
         "현재 MVP에서는 rule-based 대응 가이드를 제공합니다. "
         "향후 RAG 기반 대응 가이드로 확장 예정입니다."
@@ -338,20 +342,35 @@ def render_response_guide(result_df: pd.DataFrame):
     danger_regions  = result_df[result_df["위험등급"] == "위험"]["지방청"].tolist()
     caution_regions = result_df[result_df["위험등급"] == "주의"]["지방청"].tolist()
 
+    FACTOR_ICON = {"인력": "👥", "감염병": "🦠", "물자": "⚙️"}
+
     for region_list, label in [(danger_regions, "위험"), (caution_regions, "주의")]:
         if not region_list:
             continue
         for region in region_list:
             row = result_df[result_df["지방청"] == region].iloc[0]
-            with st.expander(f"[{label}] {region} — 통합Risk: {row['통합Risk']}"):
-                guide = RESPONSE_GUIDE.get(label, {})
-                scores = {
-                    "인력":   row.get("인력Risk", 0),
-                    "감염병": row.get("감염병DC", 0),
-                    "물자":   row.get("물자Risk", 0),
-                }
-                primary = max(scores, key=scores.get)
-                st.markdown(f"**주요 위험 요인:** {primary} (점수: {scores[primary]:.1f})")
+            guide = RESPONSE_GUIDE.get(label, {})
+            scores = {
+                "인력":   row.get("인력Risk", 0),
+                "감염병": row.get("감염병DC", 0),
+                "물자":   row.get("물자Risk", 0),
+            }
+            primary = max(scores, key=scores.get)
+            icon = FACTOR_ICON.get(primary, "")
+            with st.expander(
+                f"[{label}] {region} — 통합Risk: {row['통합Risk']}  |  주요 위험: {icon} {primary}"
+            ):
+                c1, c2, c3 = st.columns(3)
+                for col, (factor, score) in zip([c1, c2, c3], scores.items()):
+                    fi = FACTOR_ICON.get(factor, "")
+                    with col:
+                        st.metric(
+                            f"{fi} {factor}{'  ★' if factor == primary else ''}",
+                            f"{score:.1f}",
+                        )
+                st.markdown(
+                    f"**{region} 맞춤 대응 — 최우선 요인:** {icon} **{primary}** (점수: {scores[primary]:.1f})"
+                )
                 st.markdown("**권고 조치:**")
                 for action in guide.get(primary, guide.get("인력", [])):
                     st.markdown(f"- {action}")
