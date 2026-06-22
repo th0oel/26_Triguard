@@ -10,9 +10,6 @@
 >
 > 별도 설치 없이 브라우저에서 바로 실행됩니다. 시뮬레이션 모드 또는 실제 데이터 모드로 체험 가능합니다.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://triguard-ai.streamlit.app)
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python)](https://python.org)
-
 ---
 
 ## 개요
