@@ -470,7 +470,7 @@ with tab2:
     st.markdown("---")
     st.download_button(
         "결과 CSV 다운로드",
-        data=result_df.to_csv(index=False, encoding="utf-8-sig"),
+        data=result_df.to_csv(index=False).encode("utf-8-sig"),
         file_name="triguard_risk_result.csv",
         mime="text/csv",
     )
