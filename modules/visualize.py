@@ -201,14 +201,12 @@ def render_map(result_df: pd.DataFrame, score_col: str = "통합Risk", title: st
         return
 
     map_df = pd.DataFrame(rows)
-    # 같은 시도에 여러 지방청이 매핑될 경우 평균
     map_df = map_df.groupby("시도", as_index=False).agg({
         score_col: "mean",
         "지방청": lambda x: " / ".join(sorted(set(x))),
         "위험등급": "first",
     })
 
-    # GeoJSON feature key
     for feat in geo["features"]:
         feat["id"] = feat["properties"]["name"]
 
@@ -233,7 +231,7 @@ def render_map(result_df: pd.DataFrame, score_col: str = "통합Risk", title: st
         hover_data={"시도": True, "지방청": False, score_col: ":.1f", "위험등급": True},
         title=title,
     )
-   fig.update_geos(
+    fig.update_geos(
         fitbounds="locations",
         visible=False,
     )
@@ -255,6 +253,7 @@ def render_map(result_df: pd.DataFrame, score_col: str = "통합Risk", title: st
     st.plotly_chart(fig, use_container_width=True)
     st.caption("마우스를 지역 위에 올리면 지방청명, Risk Score, 위험등급을 확인할 수 있습니다.")
     st.caption("※ 지방청 권역이 여러 시도에 걸치는 경우(예: 부산울산, 대구경북) 해당 시도에 동일 점수 표시")
+
 
 # ─────────────────────────────────────────────
 # 세부 지표 테이블
@@ -398,8 +397,6 @@ def render_warnings(warnings: list):
 # ─────────────────────────────────────────────
 
 def render_forecast(forecast_df: pd.DataFrame):
-    """다음 분기 예측 결과 테이블 + 차트."""
-    # 테이블
     def color_change(val):
         if "악화" in str(val):
             return "color: #e74c3c; font-weight: bold;"
@@ -410,7 +407,6 @@ def render_forecast(forecast_df: pd.DataFrame):
     styled = forecast_df.style.map(color_change, subset=["등급변화"])
     st.dataframe(styled, use_container_width=True)
 
-    # 현재 vs 예측 바 차트
     fig = go.Figure()
     fig.add_trace(go.Bar(
         name="현재 Score",
@@ -438,9 +434,6 @@ def render_forecast(forecast_df: pd.DataFrame):
 
 
 def render_cross_agency(cross: dict):
-    """3개 기관 교차 분석 결과 시각화."""
-
-    # 기관별 기여도 파이 차트
     contrib_df = cross.get("agency_contribution")
     if contrib_df is not None:
         fig = go.Figure(go.Pie(
@@ -458,7 +451,6 @@ def render_cross_agency(cross: dict):
         st.plotly_chart(fig, use_container_width=True)
         st.dataframe(contrib_df, use_container_width=True)
 
-    # 상관계수 표시
     col1, col2 = st.columns(2)
     corr_mp_dc  = cross.get("correlation_mp_dc")
     corr_dc_int = cross.get("correlation_dc_integrated")
@@ -468,7 +460,6 @@ def render_cross_agency(cross: dict):
     if corr_dc_int is not None:
         col2.metric("감염병DC ↔ 통합Risk 상관계수", f"{corr_dc_int:.3f}")
 
-    # 위험 패턴
     pattern_counts = cross.get("pattern_counts", {})
     if pattern_counts:
         pat_df = pd.DataFrame(list(pattern_counts.items()), columns=["패턴", "지방청수"])
@@ -486,7 +477,6 @@ def render_cross_agency(cross: dict):
         )
         st.plotly_chart(fig2, use_container_width=True)
 
-    # 히트맵
     heatmap = cross.get("jibang_risk_matrix")
     if heatmap is not None and not heatmap.empty:
         fig3 = go.Figure(go.Heatmap(
@@ -507,7 +497,6 @@ def render_cross_agency(cross: dict):
 
 
 def render_scenario(scenario_df: pd.DataFrame, region: str):
-    """시나리오 분석 결과 시각화."""
     colors = [GRADE_COLORS.get(g, "#95a5a6") for g in scenario_df["등급"]]
     fig = go.Figure(go.Bar(
         x=scenario_df["시나리오"],
@@ -534,7 +523,6 @@ def render_scenario(scenario_df: pd.DataFrame, region: str):
 # ─────────────────────────────────────────────
 
 def render_ml_prediction(pred_df: pd.DataFrame, cv_score: float):
-    """RandomForest 예측 등급 + 확률 테이블."""
     st.metric("모델 교차검증 정확도 (5-fold)", f"{cv_score*100:.1f}%")
     st.caption("실데이터 14개 + 시뮬레이션 300개 증강 학습 기준")
 
@@ -547,7 +535,6 @@ def render_ml_prediction(pred_df: pd.DataFrame, cv_score: float):
 
 
 def render_feature_importance(feat_imp_df: pd.DataFrame):
-    """피처 중요도 가로 바 차트."""
     fig = go.Figure(go.Bar(
         x=feat_imp_df["중요도"],
         y=feat_imp_df["피처"],
@@ -569,7 +556,6 @@ def render_feature_importance(feat_imp_df: pd.DataFrame):
 
 
 def render_cross_agency_scatter(scatter_df: pd.DataFrame, correlation: float, insight: str):
-    """인력Risk ↔ 감염병DC 산점도."""
     if scatter_df.empty:
         st.info(insight)
         return
@@ -600,7 +586,6 @@ def render_cross_agency_scatter(scatter_df: pd.DataFrame, correlation: float, in
 
 
 def render_manpower_trend(trend_df: pd.DataFrame):
-    """연도별 전국 처분인원 + 예측 라인 차트."""
     if trend_df.empty:
         st.info("트렌드 데이터 없음")
         return
@@ -641,7 +626,6 @@ def render_manpower_trend(trend_df: pd.DataFrame):
 
 
 def render_anomaly_table(anomaly_df: pd.DataFrame):
-    """이상 권역 탐지 테이블."""
     if anomaly_df.empty:
         st.info("이상 탐지 데이터 없음")
         return
