@@ -229,8 +229,13 @@ def render_map(result_df: pd.DataFrame, score_col: str = "통합Risk", title: st
         color=score_col,
         color_continuous_scale=color_scale,
         range_color=[0, 100],
-        hover_name="시도",
-        hover_data={"지방청": True, score_col: ":.1f", "위험등급": True},
+        hover_name="지방청",
+        hover_data={
+            "시도": True,
+            "지방청": False,
+            score_col: ":.1f",
+            "위험등급": True,
+        },
         title=title,
     )
     fig.update_geos(
@@ -248,6 +253,7 @@ def render_map(result_df: pd.DataFrame, score_col: str = "통합Risk", title: st
         paper_bgcolor="rgba(0,0,0,0)",
     )
     st.plotly_chart(fig, use_container_width=True)
+    st.caption("마우스를 지역 위에 올리면 지방청명, Risk Score, 위험등급을 확인할 수 있습니다.")
     st.caption("※ 지방청 권역이 여러 시도에 걸치는 경우(예: 부산울산, 대구경북) 해당 시도에 동일 점수 표시")
 
 
