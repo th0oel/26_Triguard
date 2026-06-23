@@ -444,7 +444,8 @@ with tab2:
         col1, col2, col3 = st.columns(3)
         with col1:
             match_rate = (merged_pred["일치"].sum() / len(merged_pred) * 100)
-            st.metric("예측 정확도", f"{match_rate:.0f}%")
+           st.metric("ML-Rule 정합성", f"{match_rate:.0f}%")
+           st.caption("Rule-based Risk Score 산출 결과와 ML 분류 결과 간 일치율이며, 실제 미래 예측 성능을 의미하지 않습니다.")
         with col2:
             st.metric("CV Score", f"{cv_score:.2f}")
         with col3:
