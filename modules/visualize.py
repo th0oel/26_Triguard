@@ -252,10 +252,9 @@ def render_map(result_df: pd.DataFrame, score_col: str = "통합Risk", title: st
                 font_color="black",
             ),
         )
-    st.plotly_chart(fig, use_container_width=True)
+    
     st.plotly_chart(fig, use_container_width=True)
     st.caption("마우스를 지역 위에 올리면 지방청명, Risk Score, 위험등급을 확인할 수 있습니다.")
-    st.caption("※ 지방청 권역이 여러 시도에 걸치는 경우(예: 부산울산, 대구경북) 해당 시도에 동일 점수 표시")
     st.caption("※ 지방청 권역이 여러 시도에 걸치는 경우(예: 부산울산, 대구경북) 해당 시도에 동일 점수 표시")
 
 
