@@ -447,7 +447,7 @@ with tab2:
             st.metric("ML-Rule 정합성", f"{match_rate:.0f}%")
             st.caption("Rule-based Risk Score 산출 결과와 ML 분류 결과 간 일치율이며, 실제 미래 예측 성능을 의미하지 않습니다.")
         with col2:
-            st.metric("CV Score", f"{cv_score:.2f}")
+            st.metric("CV 정합성 점수", f"{cv_score:.2f}")
         with col3:
             if cross_data.get("correlation"):
                 st.metric("인력-감염병 상관계수", f"{cross_data['correlation']:.2f}")

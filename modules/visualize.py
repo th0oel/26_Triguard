@@ -228,6 +228,12 @@ def render_map(result_df: pd.DataFrame, score_col: str = "통합Risk", title: st
         color_continuous_scale=color_scale,
         range_color=[0, 100],
         hover_name="지방청",
+        hover_data={
+            "시도": True,
+            "지방청": False,
+            score_col: ":.1f",
+            "위험등급": True,
+        },
         hover_data={"시도": True, "지방청": False, score_col: ":.1f", "위험등급": True},
         title=title,
     )
