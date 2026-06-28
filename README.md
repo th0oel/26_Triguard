@@ -29,7 +29,7 @@ flowchart TD
     D1 --> E[통합 Risk Score\n인력 40% + 감염병 40% + 물자 20%]
     D2 --> E
     D3 --> E
-    E --> F[RandomForest 분류\n정합성 검증 CV 88.6%]
+    E --> F[RandomForest 분류\n정합성 검증 CV 93%]
     E --> G[Streamlit 대시보드\n지도·분석결과·상세정보·대응가이드]
     F --> G
 ```
