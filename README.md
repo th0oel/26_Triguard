@@ -2,8 +2,6 @@
 
 > 감염병·병역자원 데이터 기반 지역별 병력운용 Risk Score 분석 및 조기경보 시스템
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://triguard-ai.streamlit.app)
-
 ---
 
 ## 프로젝트 개요
