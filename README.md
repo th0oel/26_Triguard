@@ -29,7 +29,7 @@ flowchart TD
     D1 --> E[통합 Risk Score\n인력 40% + 감염병 40% + 물자 20%]
     D2 --> E
     D3 --> E
-    E --> F[RandomForest 분류\n정합성 검증 CV 88.6%]
+    E --> F[RandomForest 분류\n정합성 검증 CV 93%]
     E --> G[Streamlit 대시보드\n지도·분석결과·상세정보·대응가이드]
     F --> G
 ```
@@ -51,8 +51,8 @@ flowchart TD
 ## 🤖 AI 기술 스택
 
 - **Risk Score 엔진**: 가중합 기반 정량 산출 (인력 40% + 감염병 40% + 물자 20%)
-- **ML 모델**: RandomForest 분류기 (5-fold CV 정확도 88.6%)
-  - ※ 88.6%는 최종 실전 성능이 아닌, Rule-based Risk Score와 ML 예측 간 정합성 검증 지표
+- **ML 모델**: RandomForest 분류기 (5-fold CV 정확도 93%)
+  - ※ 93%는 최종 실전 성능이 아닌, Rule-based Risk Score와 ML 예측 간 정합성 검증 지표
 - **이상 탐지**: Z-score 기반 이상 지역 탐지
 - **상관 분석**: Pearson 상관계수 (인력-감염병 연관성)
 - **시각화**: Plotly choropleth 지도, Streamlit 대시보드
