@@ -251,9 +251,8 @@ def render_map(result_df: pd.DataFrame, score_col: str = "통합Risk", title: st
         ),
         paper_bgcolor="rgba(0,0,0,0)",
         hoverlabel=dict(
-            bgcolor="white",
-            font_size=13,
-            font_color="black",
+            bgcolor="black",
+            font=dict(color="white", size=13),
         ),
     )
     st.plotly_chart(fig, use_container_width=True)
