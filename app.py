@@ -407,7 +407,7 @@ with tab1:
         render_map(result_df, "감염병DC", "")
 
 with tab2:
-    top3 = result_df.nlargest(3, "통합Risk")[["지방청", "통합Risk", "인력Risk", "감염병DC", "물자Risk"]]
+    top3 = result_df.nlargest(3, "통합Risk")[["지방청", "통합Risk", "인력Risk", "감염병DC", "물자Risk", "위험등급"]]
     st.error(f"🚨 우선점검 권역: {' · '.join(top3['지방청'].tolist())}")
     st.dataframe(top3.reset_index(drop=True), use_container_width=True, hide_index=True)
     st.caption("위험·주의 등급 기준은 유지하되, 같은 등급 내 Score 기준 우선순위 판단용입니다.")
